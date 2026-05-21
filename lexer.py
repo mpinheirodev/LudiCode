@@ -31,13 +31,13 @@ class LudiCodeLexer(Lexer):
 
   # Números (inteiros e decimais)
   @_(r'\d+\.\d+|\d+')
-  def NUMERO(self, t):
+    def NUMERO(self, t):
         t.value = float(t.value) if '.' in t.value else int(t.value)
         return t
 
   # Textos (entre aspas)
   @_(r'".*?"')
-  def TEXTO(self, t):
+    def TEXTO(self, t):
         t.value = t.value[1:-1] # Remove as aspas da string capturada
         return t
 
@@ -46,5 +46,5 @@ class LudiCodeLexer(Lexer):
 
   # Quebra de linha
   @_(r'\n+')
-  def ignore_newline(self, t):
+    def ignore_newline(self, t):
         self.lineno += len(t.value)

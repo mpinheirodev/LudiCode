@@ -1,7 +1,0 @@
-var idade = 18
-
-se (idade >= 18) {
-    mostrar("Maior de idade")
-} senao {
-    mostrar("Menor de idade")
-}
