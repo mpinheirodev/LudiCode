@@ -115,15 +115,21 @@ Para que o computador compreenda as instruções, o projeto utiliza uma arquitet
 % ────────────────────────────────────────────────
 %  2. ESTRUTURA E RECURSOS DA LINGUAGEM
 % ────────────────────────────────────────────────
+
 \section{Estrutura e Recursos da Linguagem}
 
-A linguagem LudiCode possui uma sintaxe imperativa e fortemente estruturada por blocos delimitados por chaves (\texttt{\{\}}). Os principais recursos oferecidos e suportados pela arquitetura estável do interpretador englobam:
+A linguagem LudiCode possui sintaxe imperativa e estruturada por blocos delimitados por chaves (\texttt{\{\}}). No estado atual do código-fonte, a parte principal da linguagem está implementada sobre declarações, atribuições, expressões, comandos de saída e estruturas de controle. O interpretador também possui uma camada de simulação para recursos de robótica educacional, mantendo estado de sensores, motores e eventos, embora esses comandos de hardware ainda não estejam ligados diretamente a uma produção sintática geral no arquivo \texttt{parse.py}.
+
+Os principais recursos efetivamente presentes na versão atual são:
 
 \begin{itemize}
-    \item \textbf{Declaração e Atribuição Dinâmica:} Uso da palavra reservada \texttt{var} para introdução de novos identificadores na tabela de símbolos, permitindo reatribuições subsequentes.
-    \item \textbf{Controle de Fluxo Condicional:} Estruturas compostas do tipo \texttt{se} e \texttt{senao} avaliadas a partir de expressões relacionais booleanas.
-    \item \textbf{Laços de Repetição Iterativos:} Suporte para laços condicionais pré-testados (\texttt{enquanto}) e blocos de repetição de iteração direta (\texttt{repita}).
-    \item \textbf{Mecanismo de Saída Embutido:} Função nativa de terminal \texttt{mostrar()} para fins de depuração e visualização de dados textuais e numéricos.
+    \item \textbf{Declaração e atribuição dinâmica:} uso da palavra reservada \texttt{var} para criação de variáveis na tabela de símbolos e uso de \texttt{=} para atualização de variáveis já declaradas.
+    \item \textbf{Tipos básicos:} suporte a números inteiros, números decimais, textos entre aspas e valores booleanos \texttt{verdadeiro} e \texttt{falso}.
+    \item \textbf{Expressões aritméticas e relacionais:} suporte aos operadores \texttt{+}, \texttt{-}, \texttt{*}, \texttt{/}, \texttt{==}, \texttt{<}, \texttt{>}, \texttt{<=} e \texttt{>=} dentro das regras do parser.
+    \item \textbf{Controle de fluxo condicional:} estruturas \texttt{se} e \texttt{senao}, com condição entre parênteses e corpo estruturado em bloco.
+    \item \textbf{Laços de repetição:} suporte ao laço condicional \texttt{enquanto} e ao comando \texttt{repita} seguido de um número literal e um bloco.
+    \item \textbf{Saída em terminal:} comando nativo \texttt{mostrar()} implementado no parser e no interpretador para exibição de valores.
+    \item \textbf{Simulação de robótica no interpretador:} a classe \texttt{SimulationRuntime} mantém motores, sensores e eventos; o interpretador possui funções internas para \texttt{ligarMotor}, \texttt{desligarMotor}, \texttt{lerSensor} e \texttt{configurarSensor}, acessíveis quando a AST normalizada contém nós de chamada.
 \end{itemize}
 
 O exemplo de listagem a seguir ilustra o comportamento típico de validação condicional em código-fonte LudiCode:
@@ -141,11 +147,12 @@ se (idade >= 18) {
 % ────────────────────────────────────────────────
 %  3. GRAMÁTICA FORMAL (BNF)
 % ────────────────────────────────────────────────
+
 \section{Gramática Formal da Linguagem}
 
-A sintaxe da linguagem LudiCode é especificada formalmente por meio da Notação Backus-Naur (\textbf{BNF}), descrevendo com precisão as produções gramaticais aceitas e validadas pelo analisador sintático (\texttt{parse.py}).
+A sintaxe da linguagem LudiCode é especificada formalmente por meio da Notação Backus-Naur (\textbf{BNF}), descrevendo as produções aceitas pelo analisador sintático implementado em \texttt{parse.py}. A gramática abaixo documenta o comportamento atualmente codificado no parser.
 
-\begin{lstlisting}[language={}, caption={Especificação BNF da Linguagem LudiCode}, keywordstyle=\color{black}, numbers=none, frame=single]
+\begin{lstlisting}[language={}, caption={Especificação BNF da Linguagem LudiCode conforme parse.py}, keywordstyle=\color{black}, numbers=none, frame=single]
 <program>      ::= <statement>
                | <program> <statement>
 
@@ -154,10 +161,13 @@ A sintaxe da linguagem LudiCode é especificada formalmente por meio da Notaçã
                | "mostrar" "(" <expr> ")"
                | "se" "(" <expr> ")" <bloco>
                | "se" "(" <expr> ")" <bloco> "senao" <bloco>
+               | "se" "(" <expr> ")" <bloco> "senao" <statement>
+               | "se" "(" <expr> ")" <statement> "senao" <bloco>
                | "enquanto" "(" <expr> ")" <bloco>
                | "repita" <numero> <bloco>
 
 <bloco>        ::= "{" <program> "}"
+               | "{" <statement> "}"
 
 <expr>         ::= <expr> "+" <expr>
                | <expr> "-" <expr>
@@ -175,9 +185,11 @@ A sintaxe da linguagem LudiCode é especificada formalmente por meio da Notaçã
                | <id>
 
 <numero>       ::= [0-9]+ | [0-9]+ "." [0-9]+
-<texto>        ::= '"' <qualquer-char>* '"'
+<texto>        ::= '"' <qualquer-caractere>* '"'
 <id>           ::= [a-zA-Z_][a-zA-Z0-9_]*
 \end{lstlisting}
+
+É importante observar que os tokens \texttt{FUNCAO} e \texttt{RETORNE} já estão reconhecidos no analisador léxico, porém não possuem produções sintáticas associadas no \texttt{parse.py} desta versão. Da mesma forma, as chamadas genéricas de função usadas internamente pelo interpretador para recursos de robótica ainda não aparecem como regra gramatical geral no parser.
 
 % ────────────────────────────────────────────────
 %  4. DESENVOLVIMENTO DO SISTEMA
@@ -207,34 +219,47 @@ O fluxo de processamento de dados ocorre de maneira síncrona e hierárquica, tr
 \end{tikzpicture}
 \end{center}
 
+
 \subsection{Análise Léxica (\texttt{lexer.py})}
 
-O analisador léxico (\texttt{LudiCodeLexer}) converte o fluxo de caracteres de entrada em um conjunto ordenado de \textit{tokens}. Palavras reservadas e identificadores genéricos são processados por meio de expressões regulares combinadas com um dicionário interno de mapeamento estrito.
+O analisador léxico (\texttt{LudiCodeLexer}) converte o fluxo de caracteres de entrada em uma sequência de \textit{tokens}. As palavras reservadas são reconhecidas por meio da regra geral de identificadores e, em seguida, remapeadas para tokens específicos por um dicionário interno.
 
-A tabela a seguir consolida as palavras-chave de controle implementadas de forma estável no arquivo \texttt{lexer.py}:
+A tabela a seguir consolida os principais tokens implementados no arquivo \texttt{lexer.py}:
 
 \begin{center}
 \begin{tabular}{llp{7cm}}
 \hline
-\textbf{Token Léxico} & \textbf{Palavra Reservada} & \textbf{Descrição Funcional} \\
+\textbf{Token Léxico} & \textbf{Padrão/Palavra} & \textbf{Descrição Funcional} \\
 \hline
-\texttt{VAR}        & \texttt{var}       & Instanciação de identificadores na memória. \\
-\texttt{SE}         & \texttt{se}        & Desvio condicional simples. \\
-\texttt{SENAO}      & \texttt{senao} / \texttt{senao} & Bloco alternativo de desvio condicional. \\
-\texttt{ENQUANTO}   & \texttt{enquanto}  & Laço de repetição sob pré-condição. \\
-\texttt{REPITA}     & \texttt{repita}    & Laço de iteração quantificável. \\
-\texttt{MOSTRAR}    & \texttt{mostrar}   & Função nativa de impressão em console. \\
+\texttt{VAR}        & \texttt{var}       & Declaração de variável. \\
+\texttt{SE}         & \texttt{se}        & Início de estrutura condicional. \\
+\texttt{SENAO}      & \texttt{senao}     & Bloco alternativo da estrutura condicional. \\
+\texttt{ENQUANTO}   & \texttt{enquanto}  & Laço de repetição com condição inicial. \\
+\texttt{REPITA}     & \texttt{repita}    & Laço de repetição com quantidade numérica literal. \\
+\texttt{FUNCAO}     & \texttt{funcao}    & Palavra reservada reconhecida pelo lexer, ainda sem regra sintática no parser. \\
+\texttt{MOSTRAR}    & \texttt{mostrar}   & Comando nativo de impressão em console. \\
 \texttt{VERDADEIRO} & \texttt{verdadeiro}& Literal lógico booleano positivo. \\
 \texttt{FALSO}      & \texttt{falso}     & Literal lógico booleano negativo. \\
+\texttt{RETORNE}    & \texttt{retorne}   & Palavra reservada reconhecida pelo lexer, ainda sem regra sintática no parser. \\
+\texttt{ID}         & Expressão regular  & Identificadores genéricos de variáveis. \\
+\texttt{NUMERO}     & Inteiro ou decimal & Valores numéricos convertidos para \texttt{int} ou \texttt{float}. \\
+\texttt{TEXTO}      & Texto entre aspas  & Cadeias textuais, com remoção das aspas na etapa léxica. \\
+\texttt{IGUAL}      & \texttt{==}        & Operador relacional de igualdade. \\
+\texttt{ATRIBUICAO} & \texttt{=}         & Operador de atribuição. \\
+\texttt{MENOR}      & \texttt{<}         & Operador relacional menor que. \\
+\texttt{MAIOR}      & \texttt{>}         & Operador relacional maior que. \\
+\texttt{MENOR\_IGUAL} & \texttt{<=}      & Operador relacional menor ou igual. \\
+\texttt{MAIOR\_IGUAL} & \texttt{>=}      & Operador relacional maior ou igual. \\
 \hline
 \end{tabular}
 \end{center}
 
-Identificadores textuais genéricos (\texttt{ID}) que coincidem com nomes comuns de variáveis são capturados pela regra base \texttt{r'[a-zA-Z\_][a-zA-Z0-9\_]*'}, sendo confrontados com o dicionário de palavras reservadas antes da classificação definitiva.
+Além dos tokens nomeados, o lexer define como literais os símbolos \texttt{+}, \texttt{-}, \texttt{*}, \texttt{/}, \texttt{(}, \texttt{)}, \texttt{\{}, \texttt{\}}, \texttt{,}, \texttt{.} e \texttt{;}. Comentários de linha iniciados por \texttt{//} ou \texttt{\#} são ignorados. Quebras de linha atualizam o contador interno \texttt{lineno}, utilizado nas mensagens de erro léxico.
+
 
 \subsection{Análise Sintática (\texttt{parse.py}) e Árvore Abstrata (AST)}
 
-A análise sintática baseia-se em regras de produção LALR(1) parametrizadas por decoradores de escopo fornecidos pela biblioteca SLY. A resolução de ambiguidades gramaticais de expressões (como precedência aritmética e associatividade esquerda) é explicitamente estabelecida pela tupla de precedência:
+A análise sintática baseia-se em regras de produção LALR(1) parametrizadas por decoradores da biblioteca SLY. A resolução de ambiguidades gramaticais de expressões é estabelecida pela tupla de precedência presente no próprio parser:
 
 \begin{lstlisting}[language=Python, caption={Declaração de precedência estática no parser}]
 precedence = (
@@ -244,9 +269,9 @@ precedence = (
 )
 \end{lstlisting}
 
-Ao processar com sucesso a entrada, o parser sintetiza uma Árvore Sintática Abstrata (\textbf{AST}) estruturada unicamente em \textbf{tuplas aninhadas} nativas do Python. Essa padronização permite que a estrutura interna seja compacta e de fácil varredura pelo interpretador.
+Ao processar a entrada, o parser sintetiza uma Árvore Sintática Abstrata (\textbf{AST}) estruturada em \textbf{tuplas aninhadas} nativas do Python. Essa representação é compacta e compatível com o método \texttt{normalize()} do interpretador, que também aceita, em alguns casos, nós no formato de dicionário com a chave \texttt{tipo}.
 
-Abaixo estão listados os formatos estruturais das tuplas geradas na AST para as principais construções sintáticas:
+Abaixo estão listados os formatos estruturais das tuplas geradas pelo parser para as principais construções sintáticas:
 
 \begin{center}
 \begin{tabular}{lp{8.5cm}}
@@ -256,43 +281,72 @@ Abaixo estão listados os formatos estruturais das tuplas geradas na AST para as
 Declaração de variável & \texttt{('declaracao\_var', nome, expressao)} \\
 Atribuição simples     & \texttt{('atribuicao', nome, expressao)} \\
 Comando Mostrar        & \texttt{('mostrar', expressao)} \\
-Condicional Simples    & \texttt{('se', condicao, bloco\_verdadeiro)} \\
-Condicional Composta   & \texttt{('se', condicao, bloco\_verd, bloco\_falso)} \\
+Condicional simples    & \texttt{('se', condicao, bloco\_verdadeiro)} \\
+Condicional composta   & \texttt{('se', condicao, bloco\_verdadeiro, bloco\_falso)} \\
 Laço Enquanto          & \texttt{('enquanto', condicao, bloco\_corpo)} \\
 Laço Repita            & \texttt{('repita', numero, bloco\_corpo)} \\
-Operação Binária       & \texttt{('operacao', operador, esq, dir)} \\
+Operação binária       & \texttt{('operacao', operador, esq, dir)} \\
+Número                 & \texttt{('numero', valor)} \\
+Texto                  & \texttt{('texto', valor)} \\
+Booleano               & \texttt{('booleano', True/False)} \\
+Variável               & \texttt{('variavel', nome)} \\
 \hline
 \end{tabular}
 \end{center}
 
+No estado atual, o parser implementa diretamente o comando \texttt{mostrar()}, mas não possui uma regra geral para chamadas como \texttt{nomeDaFuncao(...)}. Por isso, os recursos de hardware presentes no interpretador aparecem como suporte interno de execução, e não como comandos completamente descritos pela gramática textual desta versão.
+
+
 \subsection{Interpretador Executável (\texttt{interpreter.py})}
 
-O interpretador (\texttt{LudiCodeInterpreter}) varre recursivamente a AST com suporte a tabelas de símbolos dinâmicas (\texttt{SymbolTable}) implementadas em dicionários Python. As variáveis locais sofrem checagem semântica em tempo de execução, garantindo isolamento de estado e controle de tipos primitivos (tipagem dinâmica baseada nos tipos nativos \texttt{int}, \texttt{float}, \texttt{str} e \texttt{bool}).
+O interpretador (\texttt{LudiCodeInterpreter}) percorre a AST normalizada e executa cada nó de acordo com uma tabela interna de executores. A tabela de símbolos é implementada pela classe \texttt{SymbolTable}, responsável por armazenar variáveis declaradas, impedir dupla declaração e bloquear leitura ou atribuição de identificadores inexistentes.
 
-O interpretador gerencia também os laços por meio de um teto de segurança contra loops infinitos (\texttt{loop\_limit = 10000}), prevenindo estouros de pilha ou congelamento do terminal de simulação educacional.
+A execução é organizada por três componentes principais:
+
+\begin{itemize}
+    \item \textbf{\texttt{SymbolTable}:} mantém o dicionário \texttt{values}, com as variáveis e seus valores atuais.
+    \item \textbf{\texttt{SimulationRuntime}:} mantém o estado de \texttt{sensors}, \texttt{motors} e \texttt{events}, servindo como camada de simulação para robótica educacional.
+    \item \textbf{\texttt{LudiCodeInterpreter}:} normaliza a AST, avalia expressões, executa comandos, controla laços e retorna o estado final da execução.
+\end{itemize}
+
+O método \texttt{run()} retorna um dicionário contendo quatro grupos de informação: \texttt{saida}, \texttt{variaveis}, \texttt{sensores}, \texttt{motores} e \texttt{eventos}. Esse retorno é utilizado pelo arquivo \texttt{main.py} para imprimir o resultado final da execução de arquivos \texttt{.ludi}.
+
+O interpretador possui suporte aos operadores \texttt{+}, \texttt{-}, \texttt{*}, \texttt{/}, \texttt{==}, \texttt{!=}, \texttt{<}, \texttt{>}, \texttt{<=}, \texttt{>=}, \texttt{e} e \texttt{ou}. Entretanto, no parser atual, apenas os operadores aritméticos e relacionais definidos em \texttt{parse.py} são produzidos diretamente a partir do código-fonte textual.
+
+Também há funções internas registradas no dicionário \texttt{builtins}: \texttt{ligarmotor}, \texttt{desligarmotor}, \texttt{lersensor}, \texttt{configurarsensor} e \texttt{mostrar}. Essas funções executam ações sobre a camada \texttt{SimulationRuntime} ou sobre a saída do programa. No caso de \texttt{mostrar}, além de armazenar o valor em \texttt{output}, o método também imprime o valor imediatamente no terminal.
+
+O laço \texttt{enquanto} é protegido por um limite de segurança configurado pelo atributo \texttt{loop\_limit}, cujo valor padrão atual é \texttt{1000}. Caso esse limite seja ultrapassado, o interpretador lança uma exceção semântica para evitar execução infinita.
 
 % ────────────────────────────────────────────────
 %  5. TRATAMENTO DE ERROS E ANÁLISE SEMÂNTICA
 % ────────────────────────────────────────────────
+
 \section{Tratamento de Erros e Análise Semântica}
 
-O sistema valida a semântica do programa de forma ativa durante a interpretação dos nós da AST. Caso alguma regra seja violada, o interpretador interrompe a execução e lança uma exceção customizada do tipo \texttt{SemanticError}, detalhando o erro em linguagem clara para o aluno.
+O sistema valida a semântica do programa durante a interpretação dos nós da AST. Quando alguma regra é violada, o interpretador lança uma exceção customizada do tipo \texttt{SemanticError}, com mensagem direta para facilitar a compreensão do problema.
 
-As seguintes violações semânticas são interceptadas e tratadas nativamente pelo código atual:
+As principais validações semânticas presentes no código atual são:
 
 \begin{enumerate}
-    \item \textbf{Erro de Dupla Declaração:} Lançado quando o comando \texttt{var} tenta reinicializar um identificador já existente na \texttt{SymbolTable}.
-    \item \textbf{Variável Não Declarada:} Ocorre ao tentar ler ou atribuir um valor a uma variável que não foi previamente instanciada com \texttt{var}.
-    \item \textbf{Divisão por Zero:} Interceptado antes da execução da operação aritmética básica de divisão (\texttt{/}), evitando a quebra abrupta do interpretador em Python.
-    \item \textbf{Incompatibilidade de Tipos Primitivos:} Ocorre ao tentar realizar operações matemáticas (como a subtração \texttt{-}, multiplicação \texttt{*} ou divisão \texttt{/}) envolvendo strings e números inteiros/decimais simultaneamente.
+    \item \textbf{Dupla declaração de variável:} ocorre quando \texttt{var} tenta declarar um identificador já existente na \texttt{SymbolTable}.
+    \item \textbf{Variável não declarada:} ocorre ao tentar ler ou atribuir valor a uma variável que ainda não foi criada com \texttt{var}.
+    \item \textbf{Divisão por zero:} interceptada durante a avaliação do operador \texttt{/}, convertendo o erro nativo do Python em \texttt{SemanticError}.
+    \item \textbf{Incompatibilidade de tipos:} ocorre quando uma operação recebe valores incompatíveis, por exemplo, tentar subtrair um número de um texto.
+    \item \textbf{Operador não suportado:} ocorre quando a AST contém um operador não registrado no dicionário \texttt{operators}.
+    \item \textbf{Função não suportada:} ocorre quando uma chamada de função não aparece no dicionário \texttt{builtins}.
+    \item \textbf{Sensor não configurado:} ocorre quando \texttt{lerSensor} tenta consultar um sensor inexistente no estado de simulação.
+    \item \textbf{Limite de laço excedido:} ocorre quando o laço \texttt{enquanto} ultrapassa o valor definido em \texttt{loop\_limit}.
 \end{enumerate}
+
+No arquivo \texttt{main.py}, erros léxicos capturados no modo interativo são tratados com mensagem específica. Na execução por arquivo, erros sintáticos interrompem a execução quando o parser retorna uma AST nula, enquanto erros de execução são exibidos na forma \texttt{Erro durante a execucao: ...}.
 
 % ────────────────────────────────────────────────
 %  6. TESTES E LOGS REALIZADOS
 % ────────────────────────────────────────────────
+
 \section{Testes Executados e Saídas do Sistema}
 
-Os scripts de teste homologados reproduzem os logs reais do terminal obtidos durante as sessões de validação do interpretador através do módulo \texttt{main.py}.
+Os scripts presentes na pasta \texttt{tests/} validam estruturas de repetição, desvio condicional e tratamento de erros semânticos. A execução ocorre pelo arquivo \texttt{main.py}, utilizando o comando \texttt{python main.py caminho/do/arquivo.ludi}. Durante a geração do parser, a biblioteca SLY pode emitir avisos técnicos sobre tokens definidos e ainda não utilizados, como \texttt{FUNCAO} e \texttt{RETORNE}; esses avisos não impedem a execução dos testes listados abaixo.
 
 \subsection{Teste do Laço \texttt{enquanto}}
 
@@ -307,20 +361,11 @@ enquanto (x < 3) {
 }
 \end{lstlisting}
 
-\textbf{Log de saída e depuração gerado no terminal:}
+\textbf{Saída funcional gerada no terminal:}
 \begin{lstlisting}[language={}, numbers=none, frame=single, caption={Saída do console para o laço enquanto}]
---- [1] Iniciando Analise Lexica ---
-
---- [2] Iniciando Analise Sintatica ---
-Arvore de Sintaxe Abstrata (AST) gerada:
-[('declaracao_var', 'x', ('numero', 0)),
- ('enquanto',
-   ('operacao', '<', ('variavel', 'x'), ('numero', 3)),
-   [('mostrar', ('variavel', 'x')),
-    ('atribuicao', 'x', ('operacao', '+', ('variavel', 'x'), ('numero', 1)))]
- )]
-
---- [3] Execucao / Interpretador ---
+0
+1
+2
 
 Saida do programa:
 0
@@ -329,14 +374,16 @@ Saida do programa:
 
 Estado final:
 Variaveis: {'x': 3}
-Sensores:  {}
-Motores:   {}
-Eventos:   []
+Sensores: {}
+Motores: {}
+Eventos: []
 \end{lstlisting}
+
+Nesse teste, os valores \texttt{0}, \texttt{1} e \texttt{2} aparecem duas vezes porque o método \texttt{mostrar} imprime imediatamente no terminal e, ao final da execução, o \texttt{main.py} percorre novamente a lista \texttt{saida} para exibir o resumo do programa.
 
 \subsection{Teste Condicional Estruturado}
 
-O arquivo \texttt{teste\_se.ludi} valida as ramificações relacionais maior ou igual.
+O arquivo \texttt{teste\_se.ludi} valida uma estrutura \texttt{se/senao} com comparação maior ou igual.
 
 \begin{lstlisting}[caption={tests/teste\_se.ludi}]
 var idade = 18
@@ -348,21 +395,23 @@ se (idade >= 18) {
 }
 \end{lstlisting}
 
-\textbf{Log de saída gerado no terminal:}
+\textbf{Saída funcional gerada no terminal:}
 \begin{lstlisting}[language={}, numbers=none, frame=single, caption={Saída do console para desvio condicional}]
+Maior de idade
+
 Saida do programa:
 Maior de idade
 
 Estado final:
 Variaveis: {'idade': 18}
-Sensores:  {}
-Motores:   {}
-Eventos:   []
+Sensores: {}
+Motores: {}
+Eventos: []
 \end{lstlisting}
 
 \subsection{Exemplos de Captura de Erros Semânticos}
 
-Abaixo constam as respostas nativas emitidas pelo terminal em cenários de códigos-fonte intencionalmente malformados semânticamente:
+O arquivo \texttt{teste\_tipos.ludi} valida o tratamento de incompatibilidade de tipos durante uma operação aritmética.
 
 \begin{lstlisting}[caption={tests/teste\_tipos.ludi}]
 var x = "abc" - 1
@@ -370,6 +419,8 @@ var x = "abc" - 1
 \begin{lstlisting}[language={}, numbers=none, frame=single, caption={Log de erro para tipos incompatíveis}]
 Erro durante a execucao: Tipos incompativeis para o operador '-': str e int.
 \end{lstlisting}
+
+O arquivo \texttt{teste\_divisao\_zero.ludi} valida o tratamento de divisão por zero.
 
 \begin{lstlisting}[caption={tests/teste\_divisao\_zero.ludi}]
 var x = 10 / 0
@@ -381,9 +432,11 @@ Erro durante a execucao: Divisao por zero.
 % ────────────────────────────────────────────────
 %  7. CONCLUSÃO
 % ────────────────────────────────────────────────
+
 \section{Conclusão}
 
 O desenvolvimento do LudiCode permitiu aplicar na prática conceitos estudados na disciplina de Compiladores. O projeto mostra como uma linguagem de programação pode ser criada a partir da definição de tokens, regras gramaticais e mecanismos de execução. Durante o trabalho, foram implementadas etapas fundamentais, como análise léxica, análise sintática, construção da AST e interpretação dos comandos. Cada uma dessas etapas possui uma função específica dentro do funcionamento do sistema.
 Além do aspecto técnico, o projeto também possui uma proposta educacional, pois utiliza comandos em português para facilitar o aprendizado de programação. Dessa forma, o LudiCode demonstra como conceitos de compiladores podem ser aplicados em uma ferramenta voltada ao ensino de lógica computacional e robótica.
 
 \end{document}
+
