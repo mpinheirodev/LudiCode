@@ -1,13 +1,10 @@
 import operator
 
 
-# Erro usado quando o programa esta sintaticamente valido,
-# mas quebra alguma regra da linguagem.
 class SemanticError(Exception):
     pass
 
 
-# Guarda os valores das variaveis durante a execucao.
 class SymbolTable:
     def __init__(self):
         self.values = {}
@@ -30,7 +27,6 @@ class SymbolTable:
         return self.values[name]
 
 
-# Simula a parte fisica do robo: sensores, motores e historico de acoes.
 class SimulationRuntime:
     def __init__(self, sensors=None):
         self.sensors = sensors or {}
@@ -64,10 +60,8 @@ class LudiCodeInterpreter:
         self.runtime = SimulationRuntime(sensors)
         self.output = []
 
-        # Protecao simples contra lacos infinitos.
         self.loop_limit = loop_limit
 
-        # Funcoes nativas da linguagem, como ligarMotor e lerSensor.
         self.builtins = {
             "ligarmotor": self._call_ligar_motor,
             "desligarmotor": self._call_desligar_motor,
@@ -76,7 +70,6 @@ class LudiCodeInterpreter:
             "mostrar": self._call_mostrar,
         }
 
-        # Operadores da linguagem mapeados para funcoes prontas do Python.
         self.operators = {
             "+": operator.add,
             "-": operator.sub,
@@ -92,7 +85,6 @@ class LudiCodeInterpreter:
             "ou": self._operator_ou,
         }
 
-        # Cada tipo de comando da AST aponta para o metodo que executa esse comando.
         self.executors = {
             "programa": self._exec_container,
             "bloco": self._exec_container,
@@ -106,7 +98,6 @@ class LudiCodeInterpreter:
         }
 
     def run(self, ast):
-        # Ponto de entrada: normaliza a AST, executa e devolve o estado final.
         self.execute(self.normalize(ast))
         return {
             "saida": self.output,
@@ -117,7 +108,6 @@ class LudiCodeInterpreter:
         }
 
     def normalize(self, node):
-        # Converte AST em dicionario para o formato em tuplas usado internamente.
         if node is None or isinstance(node, (int, float, str, bool)):
             return node
 
@@ -125,7 +115,6 @@ class LudiCodeInterpreter:
             return [self.normalize(item) for item in node]
 
         if isinstance(node, tuple):
-            # Se a AST ja veio do parser atual, ela ja esta quase no formato certo.
             return (node[0], *(self.normalize(item) for item in node[1:]))
 
         if not isinstance(node, dict):
@@ -146,11 +135,22 @@ class LudiCodeInterpreter:
             return ("mostrar", self.normalize(node["valor"]))
 
         if tipo == "se":
+            if isinstance(node, tuple):
+                if len(node) > 3:
+                    return ("se", self.normalize(node[1]), self.normalize(node[2]), self.normalize(node[3]))
+                return ("se", self.normalize(node[1]), self.normalize(node[2]))
+            
+            if "senao" in node:
+                return (
+                    "se",
+                    self.normalize(node["condicao"]),
+                    self.normalize(node["entao"]),
+                    self.normalize(node["senao"]),
+                )
             return (
                 "se",
                 self.normalize(node["condicao"]),
                 self.normalize(node["entao"]),
-                self.normalize(node.get("senao")),
             )
 
         if tipo == "enquanto":
@@ -180,7 +180,6 @@ class LudiCodeInterpreter:
         raise SemanticError(f"No de AST desconhecido: {tipo}")
 
     def execute(self, node):
-        # Executa comandos. Expressoes sao encaminhadas para evaluate().
         if node is None:
             return None
 
@@ -196,7 +195,6 @@ class LudiCodeInterpreter:
         return executor(node) if executor else self.evaluate(node)
 
     def evaluate(self, node):
-        # Calcula o valor de uma expressao da linguagem.
         if node is None or isinstance(node, (int, float, str, bool)):
             return node
 
@@ -218,7 +216,6 @@ class LudiCodeInterpreter:
             esquerda = self.evaluate(node[2])
             direita = self.evaluate(node[3])
             try:
-                # Avalia os dois lados antes de aplicar o operador.
                 return operador(esquerda, direita)
             except ZeroDivisionError as error:
                 raise SemanticError("Divisao por zero.") from error
@@ -234,7 +231,6 @@ class LudiCodeInterpreter:
         raise SemanticError(f"No de AST desconhecido: {tipo}")
 
     def _exec_container(self, node):
-        # Programa e bloco sao listas de comandos.
         return self.execute(node[1])
 
     def _exec_declaracao(self, node):
@@ -247,11 +243,14 @@ class LudiCodeInterpreter:
         return self._call_mostrar(self.evaluate(node[1]))
 
     def _exec_se(self, node):
-        # Escolhe o bloco verdadeiro ou falso de acordo com a condicao.
-        return self.execute(node[2] if self.evaluate(node[1]) else node[3])
+        condicao = self.evaluate(node[1])
+        if condicao:
+            return self.execute(node[2])
+        elif len(node) > 3:
+            return self.execute(node[3])
+        return None
 
     def _exec_enquanto(self, node):
-        # Repete enquanto a condicao for verdadeira.
         repeticoes = 0
         while self.evaluate(node[1]):
             repeticoes += 1
@@ -260,18 +259,11 @@ class LudiCodeInterpreter:
             self.execute(node[2])
 
     def _exec_repita(self, node):
-        # Executa o corpo ao menos uma vez e depois testa a condicao.
-        repeticoes = 0
-        while True:
-            repeticoes += 1
-            if repeticoes > self.loop_limit:
-                raise SemanticError("Limite do laco 'repita' excedido.")
-            self.execute(node[1])
-            if not self.evaluate(node[2]):
-                break
+        limite_iteraçoes = int(self.evaluate(node[1]))
+        for _ in range(limite_iteraçoes):
+            self.execute(node[2])
 
     def execute_call(self, node):
-        # O nome da funcao escolhe diretamente qual metodo Python sera chamado.
         nome = node[1].lower()
         argumentos = [self.evaluate(arg) for arg in node[2:]]
         builtin = self.builtins.get(nome)
@@ -295,6 +287,7 @@ class LudiCodeInterpreter:
 
     def _call_mostrar(self, valor=None):
         self.output.append(valor)
+        print(valor)
         return valor
 
     def _operator_e(self, esquerda, direita):

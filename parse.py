@@ -1,4 +1,4 @@
-from sly import Parser, _
+from sly import Parser
 from lexer import LudiCodeLexer
 
 
@@ -23,6 +23,10 @@ class LudiCodeParser(Parser):
     def bloco(self, p):
         return p.program
 
+    @_('"{" statement "}"')
+    def bloco(self, p):
+        return [p.statement]
+
     @_('VAR ID ATRIBUICAO expr')
     def statement(self, p):
         return ('declaracao_var', p.ID, p.expr)
@@ -42,6 +46,14 @@ class LudiCodeParser(Parser):
     @_('SE "(" expr ")" bloco SENAO bloco')
     def statement(self, p):
         return ('se', p.expr, p.bloco0, p.bloco1)
+
+    @_('SE "(" expr ")" bloco SENAO statement')
+    def statement(self, p):
+        return ('se', p.expr, p.bloco, [p.statement])
+
+    @_('SE "(" expr ")" statement SENAO bloco')
+    def statement(self, p):
+        return ('se', p.expr, [p.statement], p.bloco)
 
     @_('ENQUANTO "(" expr ")" bloco')
     def statement(self, p):

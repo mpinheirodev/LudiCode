@@ -6,7 +6,7 @@ class LudiCodeLexer(Lexer):
   ignore = ' \t'
 
   # Literais
-  literals = { '=', '+', '-', '*', '/', '(', ')', '{', '}', ',', '.' }
+  literals = { '=', '+', '-', '*', '/', '(', ')', '{', '}', ',', '.', ';' }
 
   # Operadores relacionais
   IGUAL = r'=='
@@ -20,7 +20,7 @@ class LudiCodeLexer(Lexer):
   ID = r'[a-zA-Z_][a-zA-Z0-9_]*'
   ID['var'] = VAR
   ID['se'] = SE
-  ID['senão'] = SENAO 
+  ID['senao'] = SENAO 
   ID['enquanto'] = ENQUANTO
   ID['repita'] = REPITA
   ID['funcao'] = FUNCAO
@@ -38,7 +38,7 @@ class LudiCodeLexer(Lexer):
   # Textos (entre aspas)
   @_(r'".*?"')
   def TEXTO(self, t):
-        t.value = t.value[1:-1] # Remove as aspas da string capturada
+        t.value = t.value[1:-1]
         return t
 
   # Comentários
@@ -48,3 +48,9 @@ class LudiCodeLexer(Lexer):
   @_(r'\n+')
   def ignore_newline(self, t):
         self.lineno += len(t.value)
+
+  def error(self, t):
+        print(f"Erro Lexico na linha {self.lineno}: Caractere ilegal '{t.value[0]}'")
+        self.index += 1
+        
+        return super().error(t)
